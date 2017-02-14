@@ -2,7 +2,6 @@
 
 import socket
 import threading
-import time
 from ifaces import choose_ip, enum_if
 import argparse
 import re

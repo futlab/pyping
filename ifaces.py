@@ -14,8 +14,7 @@ def enum_if():
             ip = re.search(' inet addr:(\d+.\d+.\d+.\d+) ', line)
             if ip is not None:
                 ifs.update({if_name : ip.group(1)})
-    print "Interfaces: "
-    print ifs
+    #print "Interfaces:", ifs
     return ifs
 
 
@@ -34,3 +33,4 @@ def choose_ip():
         if name != 'lo':
             return ifs.get(name)
     return ifs.get('lo')
+
