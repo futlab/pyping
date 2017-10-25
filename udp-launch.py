@@ -28,7 +28,7 @@ def launch(args, ip, port, tx_sock, id):
         tx_sock.sendto("\n" + start, (ip, port))
         p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         for line in p.stdout:
-            tx_sock.sendto("\n#" + str(id) + line, (ip, port))
+            tx_sock.sendto("\n#" + str(id) + " " + line, (ip, port))
         p.stdout.close()
         result = "QUIT #" + str(id)
         print result
