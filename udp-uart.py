@@ -3,7 +3,6 @@ from threading import Thread
 from ifaces import choose_ip, enum_if
 import argparse
 import re
-import time
 import serial
 
 parser = argparse.ArgumentParser(description='UDP-UART bridge')
@@ -36,7 +35,7 @@ else:
         UDP_IP = ip
 
 LISTEN_PORT = args.l
-runing = True
+running = True
 
 def listen(listen_ip):
     print "Start listen at " + listen_ip + ":" + str(LISTEN_PORT)
@@ -45,7 +44,7 @@ def listen(listen_ip):
     rxSock.bind((listen_ip, LISTEN_PORT))
 
     try:
-        while runing:
+        while running:
             try:
                 text, (address, port) = rxSock.recvfrom(1024)
                 data = text.split(' ')
@@ -76,7 +75,7 @@ try:
         read(uart)
 except KeyboardInterrupt:
     print "Terminating..."
-    runing = False
+    running = False
     listenThread.join()
     txSock.close()
 
