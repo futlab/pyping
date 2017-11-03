@@ -6,15 +6,19 @@ from threading import Thread
 import subprocess
 import time
 from argparse import ArgumentParser
+from os import listdir
+from os.path import isfile, join
 
 parser = ArgumentParser(description='UDP service-launcher')
 parser.add_argument('-p', type=int, default=5007, help='Set listen port')
+parser.add_argument('-d', type=str, default='/home/igor/launch/', help='Directory with .launch files')
 
 args = parser.parse_args()
 
 threads = {}
 
 UDP_port = args.p
+launchDir = args.d
 
 process_ctr = 1
 
@@ -23,19 +27,19 @@ running = True
 
 def launch(args, ip, port, tx_sock, id):
     try:
-        start = "START #" + str(id) + " " + " ".join(args)
+        start = "START " + id + " " + " ".join(args)
         print start + " output to " + ip + ":" + str(port)
         tx_sock.sendto("\n" + start, (ip, port))
         p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         for line in p.stdout:
-            tx_sock.sendto("\n#" + str(id) + " " + line, (ip, port))
+            tx_sock.sendto("\n" + id + " " + line, (ip, port))
         p.stdout.close()
-        result = "QUIT #" + str(id)
+        result = "QUIT " + id + " " + str(p.returncode)
         print result
         tx_sock.sendto("\n" + result, (ip, port))
     except Exception as e:
         print "Launch exception:", e
-        tx_sock.sendto("\nERROR #" + str(id) + " " + str(e), (ip, port))
+        tx_sock.sendto("\nERROR " + id + " " + str(e), (ip, port))
 
 
 def listen(listen_ip, udp_port):
@@ -55,11 +59,20 @@ def listen(listen_ip, udp_port):
                 print "received:", text, "from", address
                 if data[0] == 'ping':
                     txSock.sendto("\nOK " + listen_ip + " " + socket.gethostname(), (address, int(data[1])))
+                if data[0] == 'list':
+                    files = [f for f in listdir(launchDir) if f.endswith('.launch') and isfile(join(launchDir, f))]
+                    txSock.sendto("\nLIST " + " ".join(files), (address, int(data[1])))
                 if data[0] == 'launch':
-                    args = data[2:]
-                    launch_thread = Thread(target=launch, args=(args, address, int(data[1]), txSock, process_ctr))
+                    args = data[3:]
+                    launch_thread = Thread(target=launch, args=(args, address, int(data[1]), txSock, data[2]))
                     process_ctr += 1
                     launch_thread.start()
+                if data[0] == 'roslaunch':
+                    args = ['roslaunch', launchDir + data[3]] + data[4:]
+                    launch_thread = Thread(target=launch, args=(args, address, int(data[1]), txSock, data[2]))
+                    process_ctr += 1
+                    launch_thread.start()
+
             except socket.timeout:
                 pass
     except Exception as e:
