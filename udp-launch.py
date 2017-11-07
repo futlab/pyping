@@ -15,12 +15,11 @@ parser.add_argument('-d', type=str, default='/home/igor/launch/', help='Director
 
 args = parser.parse_args()
 
-threads = {}
+listen_threads = {}
+launch_threads = {}
 
 UDP_port = args.p
 launchDir = args.d
-
-process_ctr = 1
 
 running = True
 
@@ -31,19 +30,20 @@ def launch(args, ip, port, tx_sock, id):
         print start + " output to " + ip + ":" + str(port)
         tx_sock.sendto("\n" + start, (ip, port))
         p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        launch_threads[id].update({'popen': p})
         for line in p.stdout:
             tx_sock.sendto("\n" + id + " " + line, (ip, port))
         p.stdout.close()
+        p.wait()
         result = "QUIT " + id + " " + str(p.returncode)
         print result
         tx_sock.sendto("\n" + result, (ip, port))
     except Exception as e:
         print "Launch exception:", e
         tx_sock.sendto("\nERROR " + id + " " + str(e), (ip, port))
-
+    launch_threads.pop(id, None)
 
 def listen(listen_ip, udp_port):
-    global process_ctr
     print "Start listen at " + listen_ip + ":" + str(udp_port)
     rxSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     rxSock.settimeout(1)
@@ -64,14 +64,22 @@ def listen(listen_ip, udp_port):
                     txSock.sendto("\nLIST " + " ".join(files), (address, int(data[1])))
                 if data[0] == 'launch':
                     args = data[3:]
-                    launch_thread = Thread(target=launch, args=(args, address, int(data[1]), txSock, data[2]))
-                    process_ctr += 1
+                    id = data[2]
+                    launch_thread = Thread(target=launch, args=(args, address, int(data[1]), txSock, id))
+                    launch_threads.update({id: { 'thread': launch_thread}})
                     launch_thread.start()
                 if data[0] == 'roslaunch':
                     args = ['roslaunch', launchDir + data[3]] + data[4:]
-                    launch_thread = Thread(target=launch, args=(args, address, int(data[1]), txSock, data[2]))
-                    process_ctr += 1
+                    id = data[2]
+                    launch_thread = Thread(target=launch, args=(args, address, int(data[1]), txSock, id))
+                    launch_threads.update({id: { 'thread': launch_thread}})
                     launch_thread.start()
+                if data[0] == 'stop':
+                    id = data[1]
+                    launch_threads[id]['popen'].send_signal(subprocess.signal.SIGINT) # terminate()
+                if data[0] == 'kill':
+                    id = data[1]
+                    launch_threads[id]['popen'].kill()
 
             except socket.timeout:
                 pass
@@ -87,14 +95,14 @@ try:
     while True:
         ifs = enum_if()
 
-        for if_name in threads:
-            if not threads.get(if_name).is_alive():
-                threads.update({if_name: None})
+        for if_name in listen_threads:
+            if not listen_threads.get(if_name).is_alive():
+                listen_threads.update({if_name: None})
 
         for if_name in ifs:
-            if (if_name[0] == 'w' or if_name[0] == 'e') and threads.get(if_name) is None:
+            if (if_name[0] == 'w' or if_name[0] == 'e') and listen_threads.get(if_name) is None:
                 thread = Thread(target=listen, args=(ifs.get(if_name), UDP_port))
-                threads.update({if_name: thread})
+                listen_threads.update({if_name: thread})
                 thread.start()
                 count += 1
         if count >= 1:
@@ -104,6 +112,6 @@ try:
 except KeyboardInterrupt:
     print "Terminating..."
     running = False
-    for if_name in threads:
-        threads[if_name].join()
+    for if_name in listen_threads:
+        listen_threads[if_name].join()
 
