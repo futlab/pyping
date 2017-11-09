@@ -44,14 +44,13 @@ def launch(args, ip, port, tx_sock, id):
     launch_threads.pop(id, None)
 
 def listen(listen_ip, udp_port):
-    print "Start listen at " + listen_ip + ":" + str(udp_port)
     rxSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    rxSock.settimeout(1)
-    rxSock.bind((listen_ip, udp_port))
-
     txSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)  # UDP
-
     try:
+        print "Start listen at " + listen_ip + ":" + str(udp_port)
+        rxSock.settimeout(1)
+        rxSock.bind((listen_ip, udp_port))
+
         while running:
             try:
                 text, (address, port) = rxSock.recvfrom(1024)
