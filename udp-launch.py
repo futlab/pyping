@@ -23,13 +23,15 @@ launchDir = args.d
 
 running = True
 
+def task_list():
+    return "\n".join(map(lambda k: k + " " + " ".join(launch_threads[k].args), launch_threads.keys()))
 
 def launch(args, ip, port, tx_sock, id):
     try:
         start = "START " + id + " " + " ".join(args)
         print start + " output to " + ip + ":" + str(port)
         tx_sock.sendto("\n" + start, (ip, port))
-        p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=launchDir)
         launch_threads[id].update({'popen': p})
         for line in p.stdout:
             tx_sock.sendto("\n" + id + " " + line, (ip, port))
@@ -65,21 +67,22 @@ def listen(listen_ip, udp_port):
                     args = data[3:]
                     id = data[2]
                     launch_thread = Thread(target=launch, args=(args, address, int(data[1]), txSock, id))
-                    launch_threads.update({id: { 'thread': launch_thread}})
+                    launch_threads.update({id: { 'thread': launch_thread, 'args': args}})
                     launch_thread.start()
                 if data[0] == 'roslaunch':
                     args = ['roslaunch', launchDir + data[3]] + data[4:]
                     id = data[2]
                     launch_thread = Thread(target=launch, args=(args, address, int(data[1]), txSock, id))
-                    launch_threads.update({id: { 'thread': launch_thread}})
+                    launch_threads.update({id: { 'thread': launch_thread, 'args': args}})
                     launch_thread.start()
                 if data[0] == 'stop':
                     id = data[1]
-                    launch_threads[id]['popen'].send_signal(subprocess.signal.SIGINT) # terminate()
+                    launch_threads[id]['popen'].send_signal(subprocess.signal.SIGINT)
                 if data[0] == 'kill':
                     id = data[1]
                     launch_threads[id]['popen'].kill()
-
+                if data[0] == 'tasks':
+                    txSock.sendto("\nTASKS " + task_list(), (address, int(data[1])))
             except socket.timeout:
                 pass
     except Exception as e:
@@ -94,14 +97,15 @@ try:
     while True:
         ifs = enum_if()
 
-        for if_name in listen_threads:
+        for if_name in listen_threads: # remove dead
             if not listen_threads.get(if_name).is_alive():
                 listen_threads.update({if_name: None})
 
         for if_name in ifs:
-            if (if_name[0] == 'w' or if_name[0] == 'e') and listen_threads.get(if_name) is None:
-                thread = Thread(target=listen, args=(ifs.get(if_name), UDP_port))
-                listen_threads.update({if_name: thread})
+            ip = ifs.get(if_name)
+            if (if_name[0] == 'w' or if_name[0] == 'e') and listen_threads.get(ip) is None:
+                thread = Thread(target=listen, args=(ip, UDP_port))
+                listen_threads.update({ip: thread})
                 thread.start()
                 count += 1
         if count >= 1:
