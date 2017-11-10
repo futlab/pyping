@@ -25,7 +25,7 @@ running = True
 
 
 def task_list():
-    return "\n".join(map(lambda k: k + " " + " ".join(launch_threads[k].args), launch_threads.keys()))
+    return "\n".join(map(lambda k: k + " " + " ".join(launch_threads[k]['args']), launch_threads.keys()))
 
 
 def launch(args, ip, port, id):
@@ -62,47 +62,56 @@ def listen(listen_ip, udp_port):
         while running:
             try:
                 text, (address, port) = rxSock.recvfrom(1024)
-                data = text.strip().split(' ')
                 print "received:", text, "from", address
-                if data[0] == 'ping':
-                    txSock.sendto("\nOK " + listen_ip + " " + socket.gethostname(), (address, int(data[1])))
-                if data[0] == 'list':
-                    files = [f for f in listdir(launchDir) if f.endswith('.launch') and isfile(join(launchDir, f))]
-                    txSock.sendto("\nLIST " + " ".join(files), (address, int(data[1])))
-                if data[0] == 'launch':
-                    args = data[3:]
-                    id = data[2]
-                    launch_thread = Thread(target=launch, args=(args, address, int(data[1]), id))
-                    launch_threads.update({id: { 'thread': launch_thread, 'args': args}})
-                    launch_thread.start()
-                if data[0] == 'roslaunch':
-                    args = ['roslaunch', launchDir + data[3]] + data[4:]
-                    id = data[2]
-                    launch_thread = Thread(target=launch, args=(args, address, int(data[1]), id))
-                    launch_threads.update({id: { 'thread': launch_thread, 'args': args}})
-                    launch_thread.start()
-                if data[0] == 'stop':
-                    id = data[2]
-                    lt = launch_threads.get(id)
-                    if lt is None:
-                        txSock.sendto("\nSTOP " + id + " NF", (address, int(data[1])))
-                    else:
-                        lt['popen'].send_signal(subprocess.signal.SIGINT)
-                        txSock.sendto("\nSTOP " + id + " OK", (address, int(data[1])))
-                if data[0] == 'kill':
-                    id = data[2]
-                    lt = launch_threads.get(id)
-                    if lt is None:
-                        txSock.sendto("\nKILL " + id + " NF", (address, int(data[1])))
-                    else:
-                        lt['popen'].kill()
-                        txSock.sendto("\nKILL " + id + " OK", (address, int(data[1])))
-                if data[0] == 'tasks':
-                    txSock.sendto("\nTASKS " + task_list(), (address, int(data[1])))
+                data = text.strip().split(' ')
+                cmd = data[0]
+                tx_port = int(data[1])
+
+                def answer(msg):
+                    txSock.sendto(msg, (address, tx_port))
+                try:
+                    if cmd == 'ping':
+                        answer("\nOK " + listen_ip + " " + socket.gethostname())
+                    elif cmd == 'list':
+                        files = [f for f in listdir(launchDir) if f.endswith('.launch') and isfile(join(launchDir, f))]
+                        answer("\nLIST " + " ".join(files))
+                    elif cmd == 'launch':
+                        args = data[3:]
+                        id = data[2]
+                        launch_thread = Thread(target=launch, args=(args, address, tx_port, id))
+                        launch_threads.update({id: { 'thread': launch_thread, 'args': args}})
+                        launch_thread.start()
+                    elif cmd == 'roslaunch':
+                        args = ['roslaunch', launchDir + data[3]] + data[4:]
+                        id = data[2]
+                        launch_thread = Thread(target=launch, args=(args, address, tx_port, id))
+                        launch_threads.update({id: { 'thread': launch_thread, 'args': args}})
+                        launch_thread.start()
+                    elif cmd == 'stop':
+                        id = data[2]
+                        lt = launch_threads.get(id)
+                        if lt is None:
+                            answer("\nSTOP " + id + " NF")
+                        else:
+                            lt['popen'].send_signal(subprocess.signal.SIGINT)
+                            answer("\nSTOP " + id + " OK")
+                    elif cmd == 'kill':
+                        id = data[2]
+                        lt = launch_threads.get(id)
+                        if lt is None:
+                            answer("\nKILL " + id + " NF")
+                        else:
+                            lt['popen'].kill()
+                            answer("\nKILL " + id + " OK")
+                    if cmd == 'tasks':
+                        answer("\nTASKS " + task_list())
+                except Exception as e:
+                    print "Process exception: ", e
+                    answer("\nEXCEPTION " + cmd + " " + str(e))
             except socket.timeout:
                 pass
     except Exception as e:
-        print "Exception: ", e
+        print "Loop exception: ", e
     finally:
         rxSock.close()
         txSock.close()
