@@ -3,7 +3,7 @@
 import socket
 from ifaces import enum_if
 from threading import Thread
-import subprocess
+import pexpect
 import time
 from argparse import ArgumentParser
 from os import listdir, stat, remove
@@ -36,13 +36,12 @@ def launch(args, ip, port, id):
         start = "START " + id + " " + " ".join(args)
         print start + " output to " + ip + ":" + str(port)
         tx_sock.sendto("\n" + start, (ip, port))
-        p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=launchDir)
+        p = pexpect.spawn(args[0], args=args[1:], cwd=launchDir)
         launch_threads[id].update({'popen': p})
-        for line in p.stdout:
+        while not p.eof():
+            line = p.readline()
             tx_sock.sendto("\n" + id + " " + line, (ip, port))
-        p.stdout.close()
-        p.wait()
-        result = "QUIT " + id + " " + str(p.returncode)
+        result = "QUIT " + id + " " + str(p.wait())
         print result
         tx_sock.sendto("\n" + result, (ip, port))
     except Exception as e:

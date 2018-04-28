@@ -2,7 +2,7 @@
 Description=udp-launch
 
 [Service]
-ExecStart=/bin/bash -c "source /opt/ros/kinetic/setup.bash && /opt/udp-launch/udp-launch.py"
+ExecStart=/bin/bash -c "source /opt/ros/kinetic/setup.bash && source /home/<user>/ws/devel/setup.bash && /opt/udp-launch/udp-launch.py -d /home/<user>/launch/ -b /home/<user>/bag/"
 
 [Install]
 WantedBy=multi-user.target
