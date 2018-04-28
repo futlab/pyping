@@ -36,7 +36,7 @@ def launch(args, ip, port, id):
         start = "START " + id + " " + " ".join(args)
         print start + " output to " + ip + ":" + str(port)
         tx_sock.sendto("\n" + start, (ip, port))
-        p = pexpect.spawn(args[0], args=args[1:], cwd=launchDir)
+        p = pexpect.spawn(args[0], args=args[1:], cwd=launchDir, timeout=None)
         launch_threads[id].update({'spawn': p})
         while not p.eof():
             line = p.readline()
