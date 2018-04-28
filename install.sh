@@ -1,6 +1,6 @@
 #!/bin/bash
 
-pip2 install pexpect
+# pip2 install pexpect
 
 mkdir -p /opt/udp-launch
 cp udp-launch.py udp-uart.py ifaces.py /opt/udp-launch/

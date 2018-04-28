@@ -37,7 +37,7 @@ def launch(args, ip, port, id):
         print start + " output to " + ip + ":" + str(port)
         tx_sock.sendto("\n" + start, (ip, port))
         p = pexpect.spawn(args[0], args=args[1:], cwd=launchDir)
-        launch_threads[id].update({'popen': p})
+        launch_threads[id].update({'spawn': p})
         while not p.eof():
             line = p.readline()
             tx_sock.sendto("\n" + id + " " + line, (ip, port))
@@ -124,7 +124,7 @@ def listen(listen_ip, listen_port):
                         if lt is None:
                             answer("\nSTOP " + id + " NF")
                         else:
-                            lt['popen'].send_signal(subprocess.signal.SIGINT)
+                            lt['spawn'].sendcontrol('c')
                             answer("\nSTOP " + id + " OK")
                     elif cmd == 'kill':
                         id = data[2]
